@@ -54,8 +54,8 @@ func runLoadTest(url string, requests int, concurrency int) {
 	totalRequests := 0
 
 	sem := make(chan struct{}, concurrency)
+	done := make(chan struct{})
 
-	// Goroutine to print the waiting message
 	go func() {
 		fmt.Println("Making requests, please waiting....")
 	}()
@@ -66,6 +66,7 @@ func runLoadTest(url string, requests int, concurrency int) {
 
 		go func() {
 			defer wg.Done()
+			defer func() { <-sem }()
 
 			resp, err := http.Get(url)
 			if err != nil {
@@ -83,14 +84,22 @@ func runLoadTest(url string, requests int, concurrency int) {
 			statusCodes[resp.StatusCode]++
 			totalRequests++
 			mu.Unlock()
-
-			<-sem
 		}()
 	}
 
-	wg.Wait()
-	totalTime := time.Since(startTime)
+	// Wait for all requests to complete
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
 
+	select {
+	case <-done:
+	case <-time.After(time.Duration(requests/concurrency) * time.Second):
+		fmt.Println("Timeout reached")
+	}
+
+	totalTime := time.Since(startTime)
 	generateReport(totalRequests, statusCodes, totalTime)
 }
 
