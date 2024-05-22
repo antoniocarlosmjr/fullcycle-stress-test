@@ -10,7 +10,7 @@ docker build -t stress_test .
 2) After the image is built, we can execute the image docker run, for example:
 
 ```bash
-docker run load_tester --url=http://google.com --requests=1000 --concurrency=10
+docker run stress_test --url=http://google.com --requests=1000 --concurrency=10
 ```
 
 2.1) The parameters are:
