@@ -24,7 +24,6 @@ docker run load_tester --url=http://google.com --requests=1000 --concurrency=10
 Report:
 Total requests: 1000
 Time taken: 1.000s
-Requests per second: 1000
 Status code distribution:
   [200] 1000 requests
 ```

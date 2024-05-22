@@ -24,7 +24,7 @@ func main() {
 		Short: "Stress testing tool",
 		Run: func(cmd *cobra.Command, args []string) {
 			if concurrency > requests {
-				fmt.Println("Error: Concurrency cannot be major than number of requests.")
+				fmt.Println("Error: Concurrency cannot be greater than the number of requests.")
 				os.Exit(1)
 			}
 			runLoadTest(url, requests, concurrency)
@@ -57,7 +57,7 @@ func runLoadTest(url string, requests int, concurrency int) {
 	done := make(chan struct{})
 
 	go func() {
-		fmt.Println("Making requests, please waiting....")
+		fmt.Println("Making requests, please wait....")
 	}()
 
 	for i := 0; i < requests; i++ {
@@ -69,8 +69,15 @@ func runLoadTest(url string, requests int, concurrency int) {
 			defer func() { <-sem }()
 
 			resp, err := http.Get(url)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
-				<-sem
+				if os.IsTimeout(err) {
+					statusCodes[408]++ // Request Timeout HTTP status code
+				} else {
+					statusCodes[500]++ // Assume 500 for any other error
+				}
+				totalRequests++
 				return
 			}
 			defer func(Body io.ReadCloser) {
@@ -80,10 +87,8 @@ func runLoadTest(url string, requests int, concurrency int) {
 				}
 			}(resp.Body)
 
-			mu.Lock()
 			statusCodes[resp.StatusCode]++
 			totalRequests++
-			mu.Unlock()
 		}()
 	}
 
@@ -93,11 +98,7 @@ func runLoadTest(url string, requests int, concurrency int) {
 		close(done)
 	}()
 
-	select {
-	case <-done:
-	case <-time.After(time.Duration(requests/concurrency) * time.Second):
-		fmt.Println("Timeout reached")
-	}
+	<-done // Wait until all requests are done
 
 	totalTime := time.Since(startTime)
 	generateReport(totalRequests, statusCodes, totalTime)
